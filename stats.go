@@ -137,10 +137,15 @@ func checkConteiners() {
 func main() {
 	runtime.GOMAXPROCS(1)
 
+	loglevel := log4go.INFO
+	if os.Getenv("LOG_LEVEL") == "debug" {
+		loglevel = log4go.DEBUG
+	}
+
 	logger = make(log4go.Logger)
 	w := log4go.NewConsoleLogWriter()
 	w.SetFormat("[%D %T] [%L] %M")
-	logger.AddFilter("stdout", log4go.DEBUG, w)
+	logger.AddFilter("stdout", loglevel, w)
 
 	checking = make(map[string]bool)
 
