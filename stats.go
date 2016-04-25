@@ -18,9 +18,9 @@ var (
 )
 
 func sendMetrix(appID string, metrix map[string]uint64) {
-	logger.Debug("Name: %s, CPUUsage: %d, SystemCPUUsage: %d, MemUsage: %d, MaxMemUsage: %d, MemLimit: %d",
-		appID, metrix["cpuUsage"], metrix["systemCpuUsage"], metrix["memUsage"],
-		metrix["maxMemUsage"], metrix["memLimit"])
+	logger.Debug("Name: %s, CPUPercent: %d, MemUsage: %d, MaxMemUsage: %d, MemLimit: %d, MemPercent: %d",
+		appID, metrix["cpuPercent"], metrix["memUsage"],
+		metrix["maxMemUsage"], metrix["memLimit"], metrix["memPercent"])
 
 	for k, v := range metrix {
 		statsdClient.Gauge(appID+"."+k, int64(v), 1.0)
@@ -45,12 +45,25 @@ func statsContainer(client *docker.Client, name, cID, appID string) {
 			break
 		}
 
+		cpuUsage := stats.CPUStats.CPUUsage.TotalUsage
+		systemUsage := stats.CPUStats.SystemCPUUsage
+
+		cpuPercent := 0.0
+		cpuDelta := float64(cpuUsage - stats.PreCPUStats.CPUUsage.TotalUsage)
+		systemDelta := float64(systemUsage - stats.PreCPUStats.SystemCPUUsage)
+
+		if cpuDelta > 0.0 && systemDelta > 0.0 {
+			cpuPercent = (cpuDelta / systemDelta) * float64(len(stats.CPUStats.CPUUsage.PercpuUsage)) * 100.0
+		}
+
+		memPercent := float64(stats.MemoryStats.Usage) / float64(stats.MemoryStats.Limit) * 100.0
+
 		sendMetrix(appID, map[string]uint64{
-			"cpuUsage":       stats.CPUStats.CPUUsage.TotalUsage,
-			"systemCpuUsage": stats.CPUStats.SystemCPUUsage,
-			"maxMemUsage":    stats.MemoryStats.MaxUsage,
-			"memLimit":       stats.MemoryStats.Limit,
-			"memUsage":       stats.MemoryStats.Usage,
+			"cpuPercent":  uint64(cpuPercent * 100.0), // scale percent by 100
+			"memUsage":    stats.MemoryStats.Usage,
+			"memLimit":    stats.MemoryStats.Limit,
+			"maxMemUsage": stats.MemoryStats.MaxUsage,
+			"memPercent":  uint64(memPercent * 100.0),
 		})
 	}
 
